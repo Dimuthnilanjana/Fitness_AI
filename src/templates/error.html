@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Workout Plan Generator{% endblock %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="alert alert-danger" role="alert">
+        <h4 class="alert-heading">Error</h4>
+        <p>{{ error }}</p>
+        <hr>
+        <p class="mb-0">
+            <a href="{{ url_for('generate') }}" class="btn btn-primary">Try Again</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

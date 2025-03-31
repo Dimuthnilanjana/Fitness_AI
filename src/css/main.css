@@ -1,0 +1,255 @@
+/* Global Styles */
+body {
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+/* Wrapper for Login and Register Pages */
+.auth-container {
+    background: rgba(255, 255, 255, 0.15);
+    -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px);
+    border-radius: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    padding: 30px;
+    width: 100%;
+    max-width: 400px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.auth-container:hover {
+    transform: scale(1.02);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+}
+
+/* Login and Register Form */
+.auth-container h2 {
+    color: #414654;
+    margin-bottom: 20px;
+    font-weight: 700;
+}
+
+.auth-container .form-group {
+    margin-bottom: 20px;
+}
+
+.auth-container .form-control {
+    background: rgba(255, 255, 255, 0.5);
+    border: none;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    padding: 10px 15px;
+    transition: all 0.3s ease;
+}
+
+.auth-container .form-control:focus {
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 10px rgba(234, 32, 39, 0.4);
+    border-color: transparent;
+    outline: none;
+}
+
+/* Button Styles */
+.btn {
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #fff;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.btn-primary {
+    background-color: #414654;
+}
+
+.btn-primary:hover {
+    background-color: #2e3440; /* Darker shade for hover effect */
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268; /* Darker shade for secondary button */
+}
+
+.btn-warning {
+    background-color: #ffc107;
+}
+
+.btn-warning:hover {
+    background-color: #e0a800; /* Darker shade for warning button */
+}
+
+.btn-success {
+    background-color: #28a745;
+}
+
+.btn-success:hover {
+    background-color: #218838; /* Darker shade for success button */
+}
+
+.btn-danger {
+    background-color: #dc3545;
+}
+
+.btn-danger:hover {
+    background-color: #c82333; /* Darker shade for danger button */
+}
+
+.btn-info {
+    background-color: #17a2b8;
+}
+
+.btn-info:hover {
+    background-color: #138496; /* Darker shade for info button */
+}
+
+/* Common Hover Effect for All Buttons */
+.btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Form Links (Login/Register Pages) */
+.auth-container .form-link {
+    margin-top: 10px;
+    display: block;
+    font-size: 14px;
+    color: #333;
+}
+
+.auth-container .form-link a {
+    color: #EA2027;
+    font-weight: 600;
+    transition: color 0.3s ease;
+}
+
+.auth-container .form-link a:hover {
+    color: #f15d44;
+}
+
+/* Checkbox Styles */
+.auth-container .form-check-label {
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+}
+
+.auth-container .form-check-input {
+    margin-right: 5px;
+}
+
+/* Glassmorphism for Alerts */
+.alert-glass {
+    background: rgba(234, 32, 39, 0.1);
+    border: none;
+    color: #EA2027;
+    padding: 10px 15px;
+    border-radius: 10px;
+    -webkit-backdrop-filter: blur(15px);
+    backdrop-filter: blur(15px);
+    text-align: left;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+    margin-top: 20px;
+}
+
+/* Shadows and Borders for Input Fields */
+.input-shadow {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    border-radius: 8px;
+    padding: 10px;
+    margin-bottom: 20px;
+    transition: box-shadow 0.3s ease;
+}
+
+.input-shadow:focus {
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Pre-loader Styles */
+.loading-screen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.loader {
+    border: 8px solid #f3f3f3;
+    border-top: 8px solid #414654;
+    border-radius: 50%;
+    width: 60px;
+    height: 60px;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Card Styles for Login and Register Pages */
+.auth-card {
+    background: rgba(255, 255, 255, 0.25);
+    border-radius: 15px;
+    padding: 20px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    text-align: center;
+    margin: 20px;
+}
+
+/* Simple Animations */
+.fade-in {
+    animation: fadeIn 1s ease-in;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.slide-in {
+    animation: slideIn 0.6s ease-out;
+}
+
+@keyframes slideIn {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+/* Media Queries */
+@media (max-width: 768px) {
+    .auth-container {
+        padding: 20px;
+        width: 90%;
+    }
+
+    .btn {
+        width: 100%;
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+}

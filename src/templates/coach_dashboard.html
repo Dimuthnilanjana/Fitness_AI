@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Coach Dashboard</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" type="text/css" href="/css/main.css" />
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+    />
+    <style>
+      /* General Styles */
+      body {
+        background: #121212;
+        color: #e0e0e0;
+        font-family: "Poppins", sans-serif;
+      }
+
+      .container {
+        background: #1e1e1e;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 0 15px rgba(0, 204, 255, 0.2);
+      }
+
+      /* Navbar */
+      .navbar {
+        background: linear-gradient(90deg, #0077ff, #00ccff);
+        box-shadow: 0 0 10px rgba(0, 225, 255, 0.6);
+      }
+      .modal-header{
+        background: linear-gradient(90deg, #0077ff, #00ccff);
+        color: white;
+        font-weight: bold;
+      }
+      .navbar-brand,
+      .nav-link {
+        color: white !important;
+        font-weight: 600;
+      }
+
+      /* Cards */
+      .card {
+        background: #252525;
+        color: #e0e0e0;
+        border-radius: 10px;
+        box-shadow: 0 0 10px rgba(0, 204, 255, 0.3);
+        transition: transform 0.3s ease-in-out;
+      }
+      .card:hover {
+        transform: translateY(-5px);
+      }
+      .card-header {
+        background: linear-gradient(90deg, #00ccff, #0077ff);
+        color: white;
+        font-weight: bold;
+      }
+
+      /* Buttons */
+      .btn-primary {
+        background: linear-gradient(90deg, #00ccff, #0077ff);
+        border: none;
+        padding: 14px;
+        font-size: 18px;
+        font-weight: 600;
+        text-transform: uppercase;
+        border-radius: 10px;
+        transition: all 0.3s ease-in-out;
+        box-shadow: 0 0 10px rgba(0, 204, 255, 0.6);
+      }
+      .btn-primary:hover {
+        background: linear-gradient(90deg, #0077ff, #00ccff);
+        box-shadow: 0 0 15px rgba(0, 225, 255, 0.8);
+      }
+
+      /* List Items */
+      .list-group-item {
+        background: #2b2b2b;
+        color: #e0e0e0;
+        border: none;
+      }
+
+      /* Accordions */
+      .accordion-button {
+        background: #1e1e1e;
+        color: white;
+        font-weight: bold;
+      }
+      .accordion-button:not(.collapsed) {
+        background: linear-gradient(90deg, #00ccff, #0077ff);
+        color: white;
+        box-shadow: 0 0 10px rgba(0, 225, 255, 0.6);
+      }
+
+      /* Badges */
+      .badge {
+        font-size: 14px;
+        padding: 6px 12px;
+        border-radius: 6px;
+      }
+
+      /* Animations */
+      @keyframes glow {
+        0% {
+          box-shadow: 0 0 5px rgba(0, 204, 255, 0.3);
+        }
+        50% {
+          box-shadow: 0 0 15px rgba(0, 204, 255, 0.6);
+        }
+        100% {
+          box-shadow: 0 0 5px rgba(0, 204, 255, 0.3);
+        }
+      }
+
+      .glow-effect {
+        animation: glow 2s infinite alternate;
+      }
+      .modal-body {
+        background: #1e1e1e;
+        color: #e0e0e0;
+      }
+    </style>
+    <script src="/js/main.js"></script>
+  </head>
+  <body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+      <div class="container">
+        <a class="navbar-brand" href="#">Coach Dashboard</a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navbarNav"
+          aria-controls="navbarNav"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav ms-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('logout') }}">Logout</a>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </nav>
+
+    <div class="container mt-5">
+      <h2>Welcome, Coach!</h2>
+      <p>Manage your clients and their fitness plans here.</p>
+
+      <h3 class="mt-4">Client Plans Pending Review</h3>
+      {% if plans|length > 0 %}
+      <div class="row">
+        {% for plan in plans %}
+        <div class="col-md-4">
+          <div class="card mb-4">
+            <div class="card-body">
+              <h5 class="card-title">Plan for {{ plan.user_name }}</h5>
+              <p class="card-text">Fitness Goal: {{ plan.fitness_goal }}</p>
+              <button
+                class="btn btn-primary"
+                data-bs-toggle="modal"
+                data-bs-target="#planModal{{ loop.index }}"
+              >
+                Review Plan
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="modal fade"
+          id="planModal{{ loop.index }}"
+          tabindex="-1"
+          aria-labelledby="planModalLabel{{ loop.index }}"
+          aria-hidden="true"
+        >
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="planModalLabel{{ loop.index }}">
+                  Plan Review for {{ plan.user_name }}
+                </h5>
+                <button
+                  type="button"
+                  class="btn-close"
+                  data-bs-dismiss="modal"
+                  aria-label="Close"
+                ></button>
+              </div>
+              <div class="modal-body">
+                <h6>User Information:</h6>
+                {% if plan.user_data %}
+                <ul class="list-group mb-3">
+                  {% for key, value in plan.user_data.items() %}
+                  <li class="list-group-item">
+                    <strong>{{ key|replace('_', ' ')|title }}:</strong> {{ value
+                    }}
+                  </li>
+                  {% endfor %}
+                </ul>
+                {% else %}
+                <p>User information not available.</p>
+                {% endif %}
+
+                <!-- Workout Plan Details -->
+                {% if plan.workout_plan %}
+                <div class="workout-plan mb-4">
+                  <h6 class="fw-bold">Workout Plan</h6>
+                  {% for day, workout in plan.workout_plan.items() %}
+                  <div class="day-plan mb-3">
+                    <h6>Day {{ day }}</h6>
+                    <p><strong>Type:</strong> {{ workout.type }}</p>
+                    <p><strong>Intensity:</strong> {{ workout.intensity }}</p>
+                    {% if workout.exercises %}
+                    <div class="exercises">
+                      <strong>Exercises:</strong>
+                      <ul>
+                        {% for exercise in workout.exercises %}
+                        <li>
+                          <strong>{{ exercise.name }}</strong><br />
+                          {{ exercise.desc }}<br />
+                          Sets: {{ exercise.sets }}, Reps: {{ exercise.reps }}
+                        </li>
+                        {% endfor %}
+                      </ul>
+                    </div>
+                    {% endif %}
+                  </div>
+                  {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Nutrition Plan Details -->
+                {% if plan.nutrition_plan %}
+                <div class="nutrition-plan">
+                  <h6 class="fw-bold">Nutrition Plan</h6>
+                  <p><strong>Daily Targets:</strong></p>
+                  <ul>
+                    <li>
+                      Calories: {{
+                      plan.nutrition_plan.daily_targets.calories|round|int }}
+                      kcal
+                    </li>
+                    <li>
+                      Protein: {{
+                      plan.nutrition_plan.daily_targets.protein|round|int }}g
+                    </li>
+                    <li>
+                      Carbs: {{
+                      plan.nutrition_plan.daily_targets.carbs|round|int }}g
+                    </li>
+                    <li>
+                      Fat: {{ plan.nutrition_plan.daily_targets.fat|round|int
+                      }}g
+                    </li>
+                  </ul>
+                </div>
+                {% endif %}
+                <form
+                  id="reviewForm{{ plan.id }}"
+                  onsubmit="return handleReview('{{ plan.id }}', event)"
+                >
+                  <div class="mb-3">
+                    <label for="coach_comment" class="form-label"
+                      >Add your comments/suggestions:</label
+                    >
+                    <textarea
+                      class="form-control"
+                      id="coach_comment{{ plan.id }}"
+                      name="coach_comment"
+                      rows="3"
+                      required
+                    ></textarea>
+                  </div>
+                  <button
+                    type="submit"
+                    name="action"
+                    value="approve"
+                    class="btn btn-outline-success"
+                  >
+                  <i class="ph ph-check-circle fs-4 me-3"></i>Approve Plan
+                  </button>
+                  <button
+                    type="submit"
+                    name="action"
+                    value="reject"
+                    class="btn btn-outline-danger"
+                  >
+                  <i class="ph ph-x-circle fs-4 me-3"></i>Reject Plan
+                  </button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p>No plans pending review at this time.</p>
+      {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+      function handleReview(planId, event) {
+        event.preventDefault();
+        const form = document.getElementById(`reviewForm${planId}`);
+        const formData = new FormData(form);
+        const action = event.submitter.value;
+        formData.append("action", action);
+
+        fetch(`/review_plan/${planId}`, {
+          method: "POST",
+          body: formData,
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
+          .then((data) => {
+            if (data.success) {
+              alert(`Plan ${data.status} successfully!`);
+              location.reload();
+            } else {
+              throw new Error(data.error || "Unknown error occurred");
+            }
+          })
+          .catch((error) => {
+            console.error("Error:", error);
+            alert(
+              `An error occurred while ${action}ing the plan: ${error.message}`
+            );
+          });
+
+        return false;
+      }
+    </script>
+  </body>
+</html>

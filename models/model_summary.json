@@ -1,0 +1,24 @@
+{
+  "n_clusters": 25,
+  "silhouette_score": 0.24915280914813154,
+  "inertia": 2169.444205313597,
+  "n_iterations": 14,
+  "feature_names": [
+    "weight",
+    "height",
+    "age",
+    "bmi",
+    "days_per_week",
+    "sleep_hours",
+    "calories",
+    "protein",
+    "carbohydrate",
+    "total_fat",
+    "fiber",
+    "intensity",
+    "exercise_type",
+    "rating"
+  ],
+  "total_samples": 741,
+  "timestamp": "2025-03-18T22:15:29.687857"
+}

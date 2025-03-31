@@ -1,0 +1,1280 @@
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify
+import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
+import joblib
+import os
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore, auth
+from google.api_core.exceptions import DeadlineExceeded
+from dotenv import load_dotenv
+from werkzeug.security import generate_password_hash, check_password_hash
+from src.preprocess import extract_numeric
+import logging
+from logging.handlers import RotatingFileHandler
+import os
+from datetime import datetime
+
+# Load environment variables from .env file
+load_dotenv()
+
+app = Flask(__name__, template_folder='templates')
+app.config['JSON_AS_ASCII'] = False
+app.secret_key = 'your_secret_key'  # Replace with a real secret key
+
+# Configure logging
+log_dir = 'logs'
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+logger = logging.getLogger('workout_app')
+logger.setLevel(logging.INFO)
+
+# Create handlers
+file_handler = RotatingFileHandler(
+    os.path.join(log_dir, 'workout_app.log'), 
+    maxBytes=1024*1024,  # 1MB
+    backupCount=10
+)
+console_handler = logging.StreamHandler()
+
+# Create formatters
+formatter = logging.Formatter(
+    '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+file_handler.setFormatter(formatter)
+console_handler.setFormatter(formatter)
+
+# Add handlers to logger
+logger.addHandler(file_handler)
+logger.addHandler(console_handler)
+
+# Initialize Firebase
+cred = credentials.Certificate('hdproject-6e51c-firebase-adminsdk-4e5te-d7102a3fe3.json')
+firebase_admin.initialize_app(cred)
+db = firestore.client()
+
+# Add dataset loading
+bmi_df = pd.read_csv('data/bmi.csv')
+meals_df = pd.read_csv('data/mealplans.csv')
+nutrition_df = pd.read_csv('data/nutrition.csv')
+workouts_df = pd.read_csv('data/workouts.csv')
+
+# Clean and preprocess the BMI data
+bmi_df.dropna(inplace=True)
+bmi_df['Bmi'] = bmi_df['Weight'] / (bmi_df['Height'] ** 2)
+bmi_df['BmiClass'] = pd.cut(bmi_df['Bmi'], bins=[0, 18.5, 24.9, 29.9, 34.9, 39.9, np.inf],
+                           labels=['Underweight', 'Normal weight', 'Overweight', 'Obese Class 1', 'Obese Class 2', 'Obese Class 3'])
+
+# Normalize the nutritional data
+columns_to_normalize = ['calories', 'total_fat', 'cholesterol', 'sodium', 'fiber', 'protein']
+
+for col in columns_to_normalize:
+    if col not in nutrition_df.columns:
+        print(f"Column {col} not found in the dataset")
+    else:
+        nutrition_df[col] = nutrition_df[col].apply(extract_numeric)
+
+scaler = StandardScaler()
+nutrition_df[columns_to_normalize] = scaler.fit_transform(nutrition_df[columns_to_normalize])
+
+# Load the trained model
+model = joblib.load('models/model.pkl')
+scaler = joblib.load('models/scaler.pkl')
+
+@app.route('/')
+def home():
+    return render_template('index.html')
+
+def generate_workout_plan(user_info):
+    """Generate 30-day workout plan using actual exercises from workouts.csv"""
+    try:
+        # Load workout database
+        workouts_df = pd.read_csv('data/workouts.csv')
+        
+        # Map equipment and fitness level
+        equipment_map = {
+            'none': 'Body Only',
+            'bands': 'Bands',
+            'barbell': 'Barbell',
+            'dumbbell': 'Dumbbell',
+            'cable': 'Cable',
+            'machine': 'Machine',
+            'kettlebell': 'Kettlebells',
+            'medicine ball': 'Medicine Ball',
+            'exercise ball': 'Exercise Ball'
+        }
+        
+        level_map = {
+            '1': 'Beginner',
+            '2': 'Intermediate',
+            '3': 'Expert'
+        }
+        
+        # Get user preferences
+        equipment = equipment_map.get(user_info['equipment'].lower(), 'Body Only')
+        level = level_map.get(str(user_info['fitness_level']), 'Intermediate')
+        days_per_week = int(user_info.get('days_per_week', 5))  # Default to 5 if not provided
+        fitness_level = int(user_info.get('fitness_level', 2))  # Default to Intermediate
+        
+        # Filter workouts by equipment and level
+        filtered_workouts = workouts_df[
+            (workouts_df['Equipment'].str.contains(equipment, na=False)) &
+            (workouts_df['Level'] == level)
+        ]
+        
+        # Group by workout type and sort by rating
+        workout_groups = {
+            'Cardio': filtered_workouts[filtered_workouts['Type'] == 'Cardio'].sort_values('Rating', ascending=False),
+            'Strength': filtered_workouts[filtered_workouts['Type'] == 'Strength'].sort_values('Rating', ascending=False),
+            'Flexibility': filtered_workouts[filtered_workouts['Type'].isin(['Stretching', 'Plyometrics'])].sort_values('Rating', ascending=False)
+        }
+
+        # Calculate workout and rest days based on user input
+        total_days = 30
+        workout_days_per_week = min(days_per_week, 7)  # Cap at 7 days per week
+        rest_days_per_week = 7 - workout_days_per_week
+        total_workout_days = (total_days / 7) * workout_days_per_week
+        total_rest_days = total_days - total_workout_days
+
+        # Adjust rest days based on fitness level (fewer rest for higher levels)
+        if fitness_level == 1:  # Beginner: more rest
+            total_rest_days = min(total_rest_days + 2, total_days - 5)  # At least 5 workout days
+        elif fitness_level == 3:  # Expert: less rest
+            total_rest_days = max(total_rest_days - 2, 2)  # At least 2 rest days
+        
+        logger.info(f"Generating plan: workout_days={total_workout_days}, rest_days={total_rest_days}")
+
+        # Generate 30-day plan
+        plan = {}
+        rest_day_indices = sorted(np.random.choice(range(1, 31), size=int(total_rest_days), replace=False))
+        rest_day_set = set(rest_day_indices)
+
+        for day in range(1, 31):
+            if day in rest_day_set:
+                plan[str(day)] = {
+                    'type': 'Rest',
+                    'exercises': [],
+                    'intensity': 'low',
+                    'notes': 'Focus on recovery and mobility'
+                }
+            else:
+                workout_type = np.random.choice(['Cardio', 'Strength', 'Flexibility'], 
+                                               p=[0.4, 0.4, 0.2])
+                available_exercises = workout_groups[workout_type]
+                if not available_exercises.empty:
+                    day_exercises = available_exercises.head(3).to_dict('records')
+                    exercises = [{
+                        'name': str(ex['Title']),
+                        'desc': str(ex['Desc']),
+                        'equipment': str(ex['Equipment']),
+                        'sets': 3,
+                        'reps': 12 if workout_type == 'Strength' else 30,
+                        'rating': float(ex.get('Rating', 0)),
+                        'intensity': user_info.get('intensity', 'moderate')
+                    } for ex in day_exercises]
+                else:
+                    exercises = [{
+                        'name': f'Basic {workout_type}',
+                        'desc': 'Bodyweight exercise',
+                        'equipment': 'Body Only',
+                        'sets': 3,
+                        'reps': 12,
+                        'rating': 0,
+                        'intensity': user_info.get('intensity', 'moderate')
+                    }]
+
+                plan[str(day)] = {
+                    'type': workout_type,
+                    'exercises': exercises,
+                    'intensity': user_info.get('intensity', 'moderate'),
+                    'notes': 'Focus on proper form and controlled movements'
+                }
+            
+        return plan
+
+    except Exception as e:
+        logger.error(f"Error generating workout plan: {str(e)}")
+        raise
+    
+def generate_cluster_based_plan(cluster, user_info):
+    """Generate workout plan based on 25-cluster analysis"""
+    try:
+        # Load cluster analysis
+        with open('models/cluster_analysis.json', 'r') as f:
+            cluster_info = json.load(f)
+        
+        if (str(cluster) not in cluster_info):
+            raise ValueError(f"Cluster {cluster} not found in analysis data")
+            
+        cluster_data = cluster_info[str(cluster)]
+        
+        # Validate cluster data
+        required_fields = ['focus', 'intensity_level', 'recommended_days']
+        missing_fields = [f for f in required_fields if f not in cluster_data]
+        if missing_fields:
+            raise ValueError(f"Missing cluster data fields: {missing_fields}")
+        
+        # Generate plan using cluster parameters
+        workout_params = {
+            'cardio_ratio': cluster_data.get('cardio_ratio', 0.3),
+            'strength_ratio': cluster_data.get('strength_ratio', 0.4),
+            'intensity': cluster_data['intensity_level'],
+            'recommended_days': cluster_data['recommended_days'],
+            'exercises': generate_exercises(user_info, cluster_data)
+        }
+        
+        return generate_plan_from_params(workout_params, user_info)
+        
+    except Exception as e:
+        logger.error(f"Error in cluster-based plan generation: {str(e)}")
+        raise
+
+def generate_plan_from_params(params, user_info):
+    """Generate workout plan based on model predictions"""
+    try:
+        plan = {}
+        days_per_week = params['recommended_days']
+        
+        # Calculate workout distribution
+        cardio_days = int(days_per_week * params['cardio_ratio'])
+        strength_days = int(days_per_week * params.get('strength_ratio', 0.3))
+        flexibility_days = days_per_week - cardio_days - strength_days
+        
+        workouts = []
+        workouts.extend(['Cardio'] * cardio_days)
+        workouts.extend(['Strength'] * strength_days) 
+        workouts.extend(['Flexibility'] * flexibility_days)
+        
+        # Get exercises for each type
+        exercises = params.get('exercises', {})
+        
+        # Distribute workouts across 30 days
+        for day in range(1, 31):
+            if day % 7 == 0:
+                plan[day] = {'type': 'Rest', 'exercises': []}
+            else:
+                workout_type = workouts[day % len(workouts)]
+                plan[day] = {
+                    'type': workout_type,
+                    'exercises': exercises.get(workout_type, []),
+                    'intensity': params['intensity']
+                }
+        
+        return plan
+        
+    except Exception as e:
+        logger.error(f"Error generating model-based plan: {str(e)}")
+        raise
+
+def format_plan_output(plan, focus):
+    """Format the generated plan as a string"""
+    plan_str = f"30-Day {focus} Workout Plan\n\n"
+    
+    for day, workout in plan.items():
+        plan_str += f"Day {day}:\n"
+        if workout == 'Rest':
+            plan_str += "Rest Day - Focus on recovery\n"
+        else:
+            plan_str += f"Type: {workout['type']}\n"
+            plan_str += f"Intensity: {workout['intensity']}\n"
+            plan_str += "Exercises:\n"
+            for exercise in workout['exercises']:
+                plan_str += f"- {exercise}\n"
+        plan_str += "\n"
+    
+    return plan_str
+
+def get_cardio_exercises(user_info):
+    """Return cardio exercises based on user equipment and level"""
+    intensity = user_info.get('fitness_level', '1')
+    equipment = user_info.get('equipment', 'bodyweight')
+    
+    cardio_exercises = {
+        'Cardio': [
+            f"{equipment} cardio for {user_info.get('days_per_week', 30)} minutes",
+            f"HIIT intervals ({intensity} level)",
+            "Mixed cardio circuit",
+            "Endurance training"
+        ]
+    }
+    return cardio_exercises
+
+def get_strength_exercises(user_info):
+    """Return strength exercises based on user level and equipment"""
+    equipment = user_info.get('equipment', 'bodyweight')
+    level = user_info.get('fitness_level', '1')
+    
+    strength_exercises = {
+        'Strength': [
+            f"{equipment} compound exercises",
+            "Progressive overload training",
+            f"Level {level} resistance work",
+            "Core strengthening"
+        ]
+    }
+    return strength_exercises
+
+def get_flexibility_exercises(user_info):
+    """Return flexibility exercises based on user level"""
+    level = user_info.get('fitness_level', '1')
+    
+    flexibility_exercises = {
+        'Flexibility': [
+            f"Level {level} dynamic stretching",
+            "Mobility flow sequence",
+            "Joint mobility work",
+            "Recovery stretches"
+        ]
+    }
+    return flexibility_exercises
+
+def generate_exercises(user_info, cluster_data):
+    """Generate exercises based on cluster data and user info"""
+    try:
+        # Get exercises based on workout type
+        exercises = {}
+        
+        # Get cardio exercises if ratio > 0
+        if cluster_data.get('cardio_ratio', 0) > 0:
+            exercises.update(get_cardio_exercises(user_info))
+            
+        # Get strength exercises if ratio > 0    
+        if cluster_data.get('strength_ratio', 0) > 0:
+            exercises.update(get_strength_exercises(user_info))
+            
+        # Get flexibility exercises for remaining time
+        flexibility_ratio = 1.0 - (cluster_data.get('cardio_ratio', 0) + 
+                                 cluster_data.get('strength_ratio', 0))
+        if flexibility_ratio > 0:
+            exercises.update(get_flexibility_exercises(user_info))
+            
+        if not exercises:
+            raise ValueError("No exercises generated for given parameters")
+            
+        return exercises
+        
+    except Exception as e:
+        logger.error(f"Error generating exercises: {str(e)}")
+        raise
+
+def get_cluster_based_meals(cluster_id, user_data, model, scaler):
+    """Get meals based on ML model cluster prediction"""
+    try:
+        # Scale user features for meal prediction
+        features = np.array([[
+            user_data['weight'],
+            user_data['height'],
+            user_data['age'],
+            user_data['bmi'],
+            user_data['days_per_week'],
+            user_data['sleep_hours'],
+            user_data['calories'],
+            user_data['protein'],
+            user_data['carbohydrate'],
+            user_data['total_fat'],
+            user_data['fiber'],
+            user_data['intensity'],
+            user_data['exercise_type'],
+            user_data['rating']
+        ]])
+        
+        scaled_features = scaler.transform(features)
+        
+        # Load meal database
+        meals_df = pd.read_csv('data/meals.csv')
+        
+        # Get cluster parameters
+        cluster_params = model.cluster_centers_[cluster_id]
+        
+        # Filter meals based on cluster parameters
+        filtered_meals = meals_df[
+            (meals_df['calories'].between(cluster_params[6] * 0.9, cluster_params[6] * 1.1)) &
+            (meals_df['protein'].between(cluster_params[7] * 0.9, cluster_params[7] * 1.1)) &
+            (meals_df['carbs'].between(cluster_params[8] * 0.9, cluster_params[8] * 1.1)) &
+            (meals_df['fat'].between(cluster_params[9] * 0.9, cluster_params[9] * 1.1))
+        ]
+        
+        # Group meals by type
+        meals = {
+            'breakfast': filtered_meals[filtered_meals['meal_type'] == 'breakfast'].to_dict('records'),
+            'lunch': filtered_meals[filtered_meals['meal_type'] == 'lunch'].to_dict('records'),
+            'dinner': filtered_meals[filtered_meals['meal_type'] == 'dinner'].to_dict('records')
+        }
+        
+        return meals
+
+    except Exception as e:
+        logger.error(f"Error getting cluster-based meals: {str(e)}")
+        raise
+
+def generate_cluster_based_meals(cluster, user_info):
+    """Generate meal plan based on cluster analysis"""
+    try:
+        # Load model and scaler
+        model = joblib.load('models/model.pkl')
+        scaler = joblib.load('models/scaler.pkl')
+        
+        # Get cluster-specific meals
+        meals = get_cluster_based_meals(cluster, user_info, model, scaler)
+        
+        # Adjust for user preferences
+        meals = adjust_for_diet_type(meals, user_info.get('diet_type', 'balanced'))
+        meals = filter_allergies(meals, user_info.get('allergies', '').split(','))
+        meals = adjust_portions(meals, float(user_info.get('calorie_target', 2000)))
+        
+        # Format meal plan
+        return format_meal_plan(meals, int(user_info.get('meals_per_day', 3)))
+        
+    except Exception as e:
+        logger.error(f"Error generating meal plan: {str(e)}")
+        raise
+
+def adjust_portions(meals, target_calories):
+    """Adjust meal portions to match calorie target"""
+    # Implementation details
+    return meals
+
+def filter_allergies(meals, allergies):
+    """Remove meals containing allergens"""
+    # Implementation details
+    return meals
+
+def format_meal_plan(meals, meals_per_day):
+    """Format meal plan into daily structure"""
+    plan = {}
+    
+    for day in range(1, 31):
+        plan[day] = {
+            'meals': [],
+            'snacks': [],
+            'macros': {
+                'calories': 0,
+                'protein': 0,
+                'carbs': 0,
+                'fat': 0
+            }
+        }
+        
+        # Add meals based on meals_per_day
+        meal_keys = list(meals.keys())
+        for i in range(meals_per_day):
+            meal_idx = day % len(meal_keys)
+            plan[day]['meals'].append(meals[meal_keys[meal_idx]])
+            
+    return plan
+
+def format_complete_plan(workout_plan, meal_plan):
+    """Format and combine workout and meal plans"""
+    try:
+        # Create base plan structure
+        complete_plan = {
+            'workout_plan': {},
+            'meal_plan': {},
+            'overview': {
+                'total_days': 30,
+                'workout_days': len([d for d in workout_plan if workout_plan[d]['type'] != 'Rest']),
+                'rest_days': len([d for d in workout_plan if workout_plan[d]['type'] == 'Rest'])
+            }
+        }
+
+        # Format workout plan
+        complete_plan['workout_plan'] = workout_plan
+
+        # Format meal plan
+        complete_plan['meal_plan'] = {
+            'daily_targets': meal_plan['daily_targets'],
+            'meals': meal_plan['meals'],
+            'diet_type': meal_plan['diet_type'],
+            'macro_split': meal_plan['macro_split']
+        }
+
+        # Add summary statistics
+        complete_plan['summary'] = {
+            'workout_types': get_workout_type_distribution(workout_plan),
+            'average_calories': meal_plan['daily_targets']['calories'],
+            'macro_distribution': {
+                'protein': meal_plan['daily_targets']['protein'],
+                'carbs': meal_plan['daily_targets']['carbs'],
+                'fat': meal_plan['daily_targets']['fat']
+            }
+        }
+
+        return complete_plan
+
+    except Exception as e:
+        logger.error(f"Error formatting complete plan: {str(e)}")
+        raise ValueError(f"Failed to format complete plan: {str(e)}")
+
+def get_workout_type_distribution(workout_plan):
+    """Calculate distribution of workout types"""
+    distribution = {
+        'Cardio': 0,
+        'Strength': 0,
+        'Flexibility': 0,
+        'Rest': 0
+    }
+    for day, workout in workout_plan.items():
+        if workout == 'Rest':
+            distribution['Rest'] += 1
+        else:
+            distribution[workout['type']] += 1
+    return distribution
+
+def calculate_average_calories(meal_plan):
+    """Calculate average daily calories"""
+    total_calories = sum(day['macros']['calories'] for day in meal_plan.values())
+    return total_calories / len(meal_plan) if meal_plan else 0
+
+def calculate_macro_distribution(meal_plan):
+    """Calculate average macro distribution"""
+    totals = {'protein': 0, 'carbs': 0, 'fat': 0}
+    for day in meal_plan.values():
+        for macro in totals:
+            totals[macro] += day['macros'].get(macro, 0)
+    
+    days = len(meal_plan) or 1
+    return {
+        macro: total / days 
+        for macro, total in totals.items()
+    }
+
+def adjust_for_diet_type(meals, diet_type):
+    """Adjust meals based on diet type preferences"""
+    try:
+        # Define macro ratios for different diet types
+        diet_ratios = {
+            'balanced': {'protein': 0.3, 'carbs': 0.4, 'fat': 0.3},
+            'high_protein': {'protein': 0.4, 'carbs': 0.4, 'fat': 0.2},
+            'low_carb': {'protein': 0.5, 'carbs': 0.1, 'fat': 0.4},
+            'high_carb': {'protein': 0.3, 'carbs': 0.5, 'fat': 0.2}
+        }
+        
+        # Get target ratios for selected diet type
+        target_ratios = diet_ratios.get(diet_type, diet_ratios['balanced'])
+        
+        adjusted_meals = {}
+        for meal_type, meal_list in meals.items():
+            # Filter meals that match target macro ratios within 10% tolerance
+            adjusted_meals[meal_type] = [
+                meal for meal in meal_list
+                if (abs(meal['protein_ratio'] - target_ratios['protein']) <= 0.1 and
+                    abs(meal['carbs_ratio'] - target_ratios['carbs']) <= 0.1 and
+                    abs(meal['fat_ratio'] - target_ratios['fat']) <= 0.1)
+            ]
+            
+            # If no meals match exactly, include closest matches
+            if not adjusted_meals[meal_type]:
+                adjusted_meals[meal_type] = sorted(
+                    meal_list,
+                    key=lambda x: sum([
+                        abs(x['protein_ratio'] - target_ratios['protein']),
+                        abs(x['carbs_ratio'] - target_ratios['carbs']),
+                        abs(x['fat_ratio'] - target_ratios['fat'])
+                    ])
+                )[:3]  # Take top 3 closest matches
+                
+        return adjusted_meals
+        
+    except Exception as e:
+        logger.error(f"Error adjusting meals for diet type: {str(e)}")
+        return meals  # Return original meals if adjustment fails
+
+def map_workout_data(workout_df):
+    """Map existing workout data to model format"""
+    return {
+        'id': workout_df.index,
+        'name': workout_df['Title'],
+        'category': workout_df['Type'].map({
+            'Strength': 1,
+            'Cardio': 0, 
+            'Plyometrics': 2,
+            'Stretching': 3
+        }),
+        'intensity': workout_df['Level'].map({
+            'Beginner': 0.3,
+            'Intermediate': 0.6,
+            'Expert': 0.9
+        }),
+        'equipment': workout_df['Equipment'],
+        'recommended_sets': 3,  # Default values based on exercise type
+        'recommended_reps': workout_df['Type'].map({
+            'Strength': 12,
+            'Cardio': 30,
+            'Plyometrics': 10,
+            'Stretching': 1
+        }),
+        'model_score': workout_df['Rating'].fillna(7.0) / 10.0  # Convert ratings to 0-1 scale
+    }
+
+def get_workouts_from_model(cluster_data, user_info):
+    """Get specific workouts based on model cluster data"""
+    try:
+        # Load workout database
+        workouts_df = pd.read_csv('data/workouts.csv')
+        
+        # Map intensity level to numeric range
+        intensity_map = {
+            'low': 'Beginner',
+            'moderate': 'Intermediate', 
+            'high': 'Expert'
+        }
+        target_level = intensity_map[cluster_data['intensity_level']]
+        
+        # Filter workouts based on level and equipment
+        equipment = user_info.get('equipment', 'bodyweight').lower()
+        filtered_workouts = workouts_df[
+            (workouts_df['Level'] == target_level) &
+            (workouts_df['Equipment'].str.lower().str.contains(equipment, na=False))
+        ]
+
+        # Group by workout type
+        grouped_workouts = {
+            'Cardio': filtered_workouts[filtered_workouts['Type'] == 'Cardio'],
+            'Strength': filtered_workouts[filtered_workouts['Type'] == 'Strength'],
+            'Flexibility': filtered_workouts[filtered_workouts['Type'].isin(['Stretching', 'Plyometrics'])]
+        }
+        
+        # Select exercises based on cluster ratios and ratings
+        selected_workouts = {}
+        for category, ratio in [
+            ('Cardio', cluster_data['cardio_ratio']),
+            ('Strength', cluster_data['strength_ratio']),
+            ('Flexibility', 1 - (cluster_data['cardio_ratio'] + cluster_data['strength_ratio']))
+        ]:
+            if ratio > 0 and len(grouped_workouts[category]) > 0:
+                n_exercises = max(3, int(ratio * 5))
+                workout_pool = grouped_workouts[category].nlargest(
+                    n=min(n_exercises, len(grouped_workouts[category])),
+                    columns='Rating'
+                ).to_dict('records')
+                
+                selected_workouts[category] = [
+                    {
+                        'name': w['Title'],
+                        'desc': w['Desc'],
+                        'equipment': w['Equipment'],
+                        'level': w['Level'],
+                        'sets': 3,
+                        'reps': 12 if w['Type'] == 'Strength' else 30,
+                        'rating': w['Rating']
+                    }
+                    for w in workout_pool
+                ]
+        
+        return selected_workouts
+        
+    except Exception as e:
+        logger.error(f"Error getting model-based workouts: {str(e)}")
+        raise
+
+@app.route('/admin/register', methods=['GET', 'POST'])
+def admin_register():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+        
+        # Hash password before storing
+        hashed_password = generate_password_hash(password)
+
+        # Create the admin user in Firestore
+        db.collection('admins').document(username).set({
+            'username': username,
+            'password': hashed_password
+        })
+        return redirect(url_for('admin_login'))
+    
+    return render_template('admin/admin_registration.html')
+
+# Admin Login
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    if request.method == 'POST':
+        username = request.form['username']
+        password = request.form['password']
+
+        # Retrieve the admin from Firestore
+        admin_doc = db.collection('admins').document(username).get()
+        # Correctly check if the document exists (no parentheses)
+        if admin_doc.exists:
+            admin_data = admin_doc.to_dict()
+            if check_password_hash(admin_data['password'], password):
+                session['is_admin'] = True
+                session['admin_username'] = username
+                logger.info(f"Admin {username} logged in successfully")
+                return redirect(url_for('admin_dashboard'))
+        
+        logger.warning(f"Login failed for admin {username}: Invalid credentials")
+        return 'Login failed. Check your username and password.', 401
+    
+    return render_template('admin/admin_login.html')
+
+# Admin Dashboard
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    if 'is_admin' not in session:
+        return redirect(url_for('admin_login'))
+
+    # Fetch all coaches from Firestore
+    user_data = db.collection('users').where('user_type', '==', 'coach')
+    coaches = [doc.to_dict() for doc in user_data.stream()]
+
+    return render_template('admin/admin_dashboard.html', coaches=coaches)
+
+# Coach Registration by Admin
+@app.route('/admin/register_coach', methods=['POST'])
+def register_coach():
+    if 'is_admin' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    user_type = request.form['user_type']
+    coach_name = request.form['coach_name']
+    email = request.form['email']
+    password = request.form['password']
+    specialization = request.form['specialization']
+    profile_pic_url = request.form['profile_pic_url']
+    services = request.form.getlist('services')  # Assuming services is a list
+
+    # Hash password before storing
+    hashed_password = generate_password_hash(password)
+
+    # Store the new coach in Firestore
+    user = auth.create_user(email=email, password=password)
+    db.collection('users').document(user.uid).set({
+        'user_type': user_type,
+        'username': coach_name,
+        'email': email,
+        'password': hashed_password,
+        'specialization': specialization,
+        'profile_pic_url': profile_pic_url,
+        'services': services
+    })
+
+    return jsonify({'success': True}), 200
+
+@app.route('/admin/delete_coach/<coach_email>', methods=['POST'])
+def delete_coach(coach_email):
+    if 'is_admin' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        # Find the coach document by email and delete it
+        coach_query = db.collection('users').where('email', '==', coach_email).limit(1)
+        coach_docs = coach_query.get()
+        
+        if not coach_docs:
+            return jsonify({'error': 'Coach not found'}), 404
+        
+        for doc in coach_docs:
+            doc.reference.delete()
+        
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/admin/get_coach/<coach_email>')
+def get_coach(coach_email):
+    if 'is_admin' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    coach_query = db.collection('users').where('email', '==', coach_email).limit(1)
+    coach_docs = coach_query.get()
+    
+    if not coach_docs:
+        return jsonify({'error': 'Coach not found'}), 404
+    
+    coach_data = coach_docs[0].to_dict()
+    return jsonify(coach_data)
+
+@app.route('/admin/edit_coach/<coach_email>', methods=['POST'])
+def edit_coach(coach_email):
+    if 'is_admin' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    coach_query = db.collection('users').where('email', '==', coach_email).limit(1)
+    coach_docs = coach_query.get()
+    
+    if not coach_docs:
+        return jsonify({'error': 'Coach not found'}), 404
+    
+    coach_doc = coach_docs[0]
+    
+    updated_data = {
+        'username': request.form['coach_name'],
+        'specialization': request.form['specialization'],
+        'profile_pic_url': request.form['profile_pic_url'],
+        'services': request.form.getlist('services')
+    }
+    
+    new_email = request.form['email']
+    
+    # Update email in Firebase Auth if it has changed
+    if new_email != coach_email:
+        try:
+            user = auth.get_user_by_email(coach_email)
+            auth.update_user(user.uid, email=new_email)
+            updated_data['email'] = new_email
+        except Exception as e:
+            return jsonify({'error': f'Failed to update email: {str(e)}'}), 400
+    
+    coach_doc.reference.update(updated_data)
+    return jsonify({'success': True})
+
+@app.route('/admin/reset_coach_password/<coach_email>', methods=['POST'])
+def reset_coach_password(coach_email):
+    if 'is_admin' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        auth.generate_password_reset_link(coach_email)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'error': f'Failed to send password reset email: {str(e)}'}), 400
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        user_name = request.form['user_name']
+        user_type = request.form['user_type']
+        try:
+            user = auth.create_user(email=email, password=password)
+            db.collection('users').document(user.uid).set({
+                'user_name': user_name,
+                'email': email,
+                'user_type': user_type
+            })
+            return redirect(url_for('login'))
+        except Exception as e:
+            return f'Registration failed: {str(e)}'
+    return render_template('register.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form['email']
+        password = request.form['password']
+        try:
+            user = auth.get_user_by_email(email)
+            user_data = db.collection('users').document(user.uid).get().to_dict()
+            session['user_id'] = user.uid
+            session['user_type'] = user_data['user_type']
+            if user_data['user_type'] == 'customer':
+                return redirect(url_for('customer_dashboard'))
+            else:
+                return redirect(url_for('coach_dashboard'))
+        except Exception as e:
+            return f'Login failed: {str(e)}'
+    return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('home'))
+
+@app.route('/customer_dashboard')
+def customer_dashboard():
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+        
+    user_data = db.collection('users').document(session['user_id']).get().to_dict()
+    
+    # Get plans with explicit status handling
+    plans_ref = db.collection('plans').where('user_id', '==', session['user_id'])
+    plans = []
+    for doc in plans_ref.stream():
+        plan = doc.to_dict()
+        plan['id'] = doc.id
+        # Set explicit status for new plans
+        if 'status' not in plan or not plan['status']:
+            plan['status'] = 'not_sent'
+        plans.append(plan)
+        
+    return render_template('customer_dashboard.html', 
+                         user_name=user_data.get('user_name', 'Customer'),
+                         plans=plans)
+
+@app.route('/coach_dashboard')
+def coach_dashboard():
+    # Check if the user is logged in and is a coach
+    if 'user_id' not in session or session['user_type'] != 'coach':
+        return redirect(url_for('login'))
+
+    # Fetch all plans with status 'requested'
+    plans_ref = db.collection('plans').where('status', '==', 'requested')
+    plans = []
+    
+    # Process each plan document
+    for doc in plans_ref.stream():
+        plan = doc.to_dict()
+        plan['id'] = doc.id
+        
+        # Fetch the user's name from the 'users' collection using user_id
+        user_doc = db.collection('users').document(plan['user_id']).get()
+        if user_doc.exists:
+            plan['user_name'] = user_doc.to_dict().get('user_name', 'Unknown')
+        else:
+            plan['user_name'] = 'Unknown'
+        
+        # Map exercise_type from user_data to a readable fitness goal
+        if 'user_data' in plan and 'exercise_type' in plan['user_data']:
+            exercise_type = str(plan['user_data']['exercise_type'])
+            fitness_goals = {
+                '0': 'Weight Loss',
+                '1': 'Muscle Gain',
+                '2': 'Endurance',
+                '3': 'General Fitness'
+            }
+            plan['fitness_goal'] = fitness_goals.get(exercise_type, 'Not specified')
+        else:
+            plan['fitness_goal'] = 'Not specified'
+        
+        plans.append(plan)
+
+    # Render the coach dashboard template with the enriched plans
+    return render_template('coach_dashboard.html', plans=plans)
+
+@app.route('/tell_coach/<plan_id>', methods=['POST'])
+def send_to_coach_review(plan_id):
+    # Check if user is authenticated
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    try:
+        logger.info(f"Attempting to send plan {plan_id} to coach")
+        # Get plan reference
+        plan_ref = db.collection('plans').document(plan_id)
+        logger.info(f"Plan reference obtained for {plan_id}")
+        plan_doc = plan_ref.get()
+        logger.info(f"Plan document retrieved for {plan_id}")
+        
+        # Correctly check if the document exists (no parentheses)
+        if not plan_doc.exists:
+            logger.warning(f"Plan {plan_id} not found")
+            return jsonify({'error': 'Plan not found'}), 404
+            
+        # Verify plan ownership
+        plan_data = plan_doc.to_dict()
+        if plan_data.get('user_id') != session['user_id']:
+            logger.warning(f"Unauthorized access attempt for plan {plan_id}")
+            return jsonify({'error': 'Unauthorized'}), 401
+            
+        # Update plan status
+        plan_ref.update({
+            'status': 'requested',
+            'updated_at': firestore.SERVER_TIMESTAMP,
+            'sent_by': session['user_id']
+        })
+        logger.info(f"Plan {plan_id} updated successfully")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Plan sent to coach successfully'
+        }), 200
+        
+    except Exception as e:
+        error_message = f"Error sending plan to coach: {e.__class__.__name__}: {e}"
+        logger.error(error_message)
+        return jsonify({'error': error_message}), 500
+
+@app.route('/review_plan/<plan_id>', methods=['POST'])
+def review_plan(plan_id):
+    # Check if user is authenticated and a coach
+    if 'user_id' not in session or session['user_type'] != 'coach':
+        return jsonify({'error': 'Unauthorized'}), 401
+    
+    # Get form data
+    coach_comment = request.form.get('coach_comment')
+    action = request.form.get('action')
+
+    logger.info(f"Received data: plan_id={plan_id}, coach_comment={coach_comment}, action={action}")
+
+    # Validate input
+    if not coach_comment or not action:
+        logger.warning(f"Missing fields: coach_comment={coach_comment}, action={action}")
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    plan_ref = db.collection('plans').document(plan_id)
+    
+    try:
+        plan_doc = plan_ref.get()
+        # Correctly check if the document exists (no parentheses)
+        if not plan_doc.exists:
+            logger.warning(f"Plan {plan_id} not found")
+            return jsonify({'error': 'Plan not found'}), 404
+
+        # Set new status based on action
+        new_status = 'approved' if action == 'approve' else 'rejected'
+        
+        # Update Firestore document
+        update_data = {
+            'coach_comment': coach_comment,
+            'status': new_status,
+            'updated_at': firestore.SERVER_TIMESTAMP  # Optional: track when it was reviewed
+        }
+        logger.info(f"Updating plan {plan_id} with data: {update_data}")
+        plan_ref.update(update_data)
+        
+        logger.info(f"Plan {plan_id} {new_status} successfully")
+        return jsonify({'success': True, 'status': new_status}), 200
+    except Exception as e:
+        error_msg = f"Error in review_plan: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({'error': error_msg}), 500
+
+@app.route('/delete_plan/<plan_id>', methods=['POST'])
+def delete_plan(plan_id):
+    # Check if user is authenticated and a customer
+    if 'user_id' not in session or session['user_type'] != 'customer':
+        logger.warning(f"Unauthorized access attempt to delete plan {plan_id}")
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    plan_ref = db.collection('plans').document(plan_id)
+    
+    try:
+        logger.info(f"Attempting to delete plan {plan_id}")
+        plan_doc = plan_ref.get()
+        
+        # Correctly check if the document exists (no parentheses)
+        if not plan_doc.exists:
+            logger.warning(f"Plan {plan_id} not found")
+            return jsonify({'error': 'Plan not found'}), 404
+        
+        # Verify ownership
+        plan_data = plan_doc.to_dict()
+        if plan_data.get('user_id') != session['user_id']:
+            logger.warning(f"User {session['user_id']} not authorized to delete plan {plan_id}")
+            return jsonify({'error': 'Unauthorized'}), 401
+        
+        # Delete the plan
+        plan_ref.delete()
+        logger.info(f"Plan {plan_id} deleted successfully")
+        return jsonify({'success': True}), 200
+    except Exception as e:
+        error_msg = f"Error deleting plan {plan_id}: {str(e)}"
+        logger.error(error_msg)
+        return jsonify({'error': error_msg}), 500
+
+def calculate_fiber(diet_type, calorie_target):
+    """Calculate fiber intake based on diet type and calories"""
+    fiber_ratios = {
+        'balanced': 0.014,
+        'high_protein': 0.012,
+        'low_carb': 0.01,
+        'high_carb': 0.016
+    }
+    return calorie_target * fiber_ratios.get(diet_type, 0.014)
+
+def process_form_data(form_data):
+    """Process user input data for ML model prediction"""
+    try:
+        # Validate required fields
+        required_fields = [
+            'weight_in_kg', 'height_in_cm', 'age', 
+            'days_per_week', 'sleep_hours', 'intensity',
+            'exercise_type', 'calorie_target', 'macro_preference',
+            'diet_type', 'equipment', 'fitness_level'
+        ]
+        
+        # Check if all required fields are present and not empty
+        missing_fields = [field for field in required_fields if not form_data.get(field)]
+        if missing_fields:
+            raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+        
+        # Calculate BMI from user inputs
+        height_m = float(form_data['height_in_cm']) / 100
+        weight_kg = float(form_data['weight_in_kg'])
+        bmi = weight_kg / (height_m * height_m)
+        
+        # Get user's macro preferences
+        macro_pref = form_data['macro_preference']
+        macro_ratios = {
+            'balanced': {'protein': 0.3, 'carbs': 0.4, 'fat': 0.3},
+            'high_protein': {'protein': 0.4, 'carbs': 0.4, 'fat': 0.2},
+            'low_carb': {'protein': 0.5, 'carbs': 0.1, 'fat': 0.4},
+            'high_carb': {'protein': 0.3, 'carbs': 0.5, 'fat': 0.2}
+        }
+        
+        if macro_pref not in macro_ratios:
+            raise ValueError(f"Invalid macro preference: {macro_pref}")
+            
+        user_macros = macro_ratios[macro_pref]
+        
+        # In process_form_data function
+        processed_data = {
+            'weight': float(weight_kg),
+            'height': float(height_m),
+            'age': int(form_data['age']),
+            'bmi': float(bmi),
+            'days_per_week': int(form_data['days_per_week']),
+            'sleep_hours': float(form_data['sleep_hours']),
+            'intensity': int(form_data['intensity']),
+            'exercise_type': int(form_data['exercise_type']),
+            'calories': float(form_data['calorie_target']),
+            'protein': user_macros['protein'],
+            'carbohydrate': user_macros['carbs'],
+            'fat': user_macros['fat'],  # Consistent naming
+            'fiber': calculate_fiber(
+                form_data['diet_type'],
+                float(form_data['calorie_target'])
+            ),
+            'equipment': form_data['equipment'],
+            'fitness_level': form_data['fitness_level'],
+            'rating': 0
+        }
+
+        logger.info(f"Processed user input data: {processed_data}")
+        return processed_data
+
+    except ValueError as e:
+        logger.error(f"Invalid input data: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"Error processing form data: {str(e)}")
+        raise
+    
+@app.route('/generate', methods=['GET', 'POST'])
+def generate():
+    """Generate personalized workout plan using ML model"""
+    if request.method == 'GET':
+        return render_template('generate_form.html')
+        
+    try:
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+
+        # Load ML model and scaler
+        model = joblib.load('models/model.pkl')
+        scaler = joblib.load('models/scaler.pkl')
+        
+        # Process form data
+        processed_data = process_form_data(request.form)
+        
+        # Convert all values to float in the correct order
+        features = np.array([
+            float(processed_data['weight']),
+            float(processed_data['height']),
+            float(processed_data['age']), 
+            float(processed_data['bmi']),
+            float(processed_data['days_per_week']),
+            float(processed_data['sleep_hours']),
+            float(processed_data['calories']),
+            float(processed_data['protein']),
+            float(processed_data['carbohydrate']),
+            float(processed_data['fat']),
+            float(processed_data['fiber']),
+            float(processed_data['intensity']),
+            float(processed_data['exercise_type']),
+            float(processed_data['rating'])
+        ], dtype=np.float64).reshape(1, -1)
+
+        # Scale features using numpy array
+        scaled_features = scaler.transform(features)
+        cluster = model.predict(scaled_features)[0]
+        
+        # Load cluster configuration
+        with open('models/cluster_analysis.json', 'r') as f:
+            cluster_info = json.load(f)
+        cluster_data = cluster_info[str(cluster)]
+        
+        # Generate plans
+        workout_plan = generate_workout_plan(processed_data)
+        nutrition_plan = generate_nutrition_plan(cluster_data, processed_data)
+        complete_plan = format_complete_plan(workout_plan, nutrition_plan)
+        
+        # Save to Firebase
+        plan_data = {
+            'user_id': session['user_id'],
+            'created_at': firestore.SERVER_TIMESTAMP,
+            'status': 'new',
+            'workout_plan': workout_plan,
+            'nutrition_plan': nutrition_plan,
+            'user_data': processed_data,
+            'cluster': int(cluster),
+            'coach_comment': '',
+            'coach_id': None
+        }
+        
+        # Store plan
+        plan_ref = db.collection('plans').add(plan_data)
+        complete_plan['plan_id'] = plan_ref[1].id
+        
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify(complete_plan)
+        else:
+            return render_template('result.html', plan=complete_plan)
+            
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f"Error generating plan: {error_msg}")
+        if request.headers.get('Accept') == 'application/json':
+            return jsonify({'error': error_msg}), 400
+        else:
+            return render_template('error.html', error=error_msg), 400
+
+def generate_nutrition_plan(cluster_data, user_data):
+    """Generate nutrition plan based on cluster and user data"""
+    try:
+        # Get user's diet preferences
+        diet_type = user_data.get('diet_type', 'balanced')
+        meals_per_day = int(user_data.get('meals_per_day', 3))
+        calorie_target = float(user_data.get('calorie_target', 2000))
+        allergies = user_data.get('allergies', '').split(',')
+        macro_pref = user_data.get('macro_preference', 'balanced')
+
+        # Get macro ratios based on preference
+        macro_ratios = {
+            'balanced': {'protein': 0.3, 'carbs': 0.4, 'fat': 0.3},
+            'high_protein': {'protein': 0.4, 'carbs': 0.4, 'fat': 0.2},
+            'low_carb': {'protein': 0.5, 'carbs': 0.1, 'fat': 0.4},
+            'high_carb': {'protein': 0.3, 'carbs': 0.5, 'fat': 0.2}
+        }[macro_pref]
+
+        # Calculate daily targets
+        protein_target = calorie_target * macro_ratios['protein'] / 4  # 4 calories per gram
+        carb_target = calorie_target * macro_ratios['carbs'] / 4
+        fat_target = calorie_target * macro_ratios['fat'] / 9  # 9 calories per gram
+        fiber_target = calculate_fiber(diet_type, calorie_target)
+
+        # Generate meal distribution
+        meals = {}
+        meal_names = ['Breakfast', 'Morning Snack', 'Lunch', 'Afternoon Snack', 'Dinner', 'Evening Snack']
+        meal_ratios = {
+            3: [0.3, 0, 0.4, 0, 0.3, 0],
+            4: [0.25, 0.15, 0.35, 0, 0.25, 0],
+            5: [0.25, 0.1, 0.3, 0.1, 0.25, 0],
+            6: [0.2, 0.1, 0.3, 0.1, 0.2, 0.1]
+        }[meals_per_day]
+
+        for i, (name, ratio) in enumerate(zip(meal_names, meal_ratios)):
+            if (ratio > 0):
+                meals[name] = {
+                    'calories': calorie_target * ratio,
+                    'protein': protein_target * ratio,
+                    'carbs': carb_target * ratio,
+                    'fat': fat_target * ratio,
+                    'fiber': fiber_target * ratio
+                }
+
+        return {
+            'daily_targets': {
+                'calories': calorie_target,
+                'protein': protein_target,
+                'carbs': carb_target,
+                'fat': fat_target,
+                'fiber': fiber_target
+            },
+            'meals': meals,
+            'diet_type': diet_type,
+            'allergies': allergies,
+            'macro_split': macro_ratios
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating nutrition plan: {str(e)}")
+        raise
+
+if __name__ == '__main__':
+    app.run(debug=True)

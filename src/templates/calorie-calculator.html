@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Calorie Calculator</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* Global Styles */
+        body {
+          background: linear-gradient(45deg, #0d0d0d, #1a1a1a);
+          color: #fff;
+          font-family: "Arial", sans-serif;
+          margin: 0;
+          padding: 0;
+          height: 100vh;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+        }
+        
+        h2, h3 {
+          text-align: center;
+          color: #fff;
+        }
+        
+        /* Navbar */
+        .navbar {
+          background: linear-gradient(90deg, #0077ff, #00ccff);
+          box-shadow: 0 0 10px rgba(0, 225, 255, 0.6);
+        }
+        .navbar-brand, .nav-link {
+          color: white !important;
+          font-weight: 600;
+        }
+        
+        /* Card Styles */
+        .card {
+          background-color: rgba(255, 255, 255, 0.1);
+          border: 1px solid rgba(255, 255, 255, 0.2);
+          border-radius: 12px;
+          padding: 20px;
+          box-shadow: 0 4px 10px rgba(0, 255, 255, 0.2);
+          transition: transform 0.3s ease-in-out;
+        }
+        
+        .card:hover {
+          transform: translateY(-10px);
+        }
+        
+        .card-header {
+          background: linear-gradient(90deg, #00b8d4, #007bff);
+          color: #fff;
+          text-align: center;
+          border-radius: 12px 12px 0 0;
+        }
+        
+        .card-body {
+          padding: 20px;
+        }
+        
+        /* Form Styles */
+        .form-label {
+          font-weight: 600;
+          color: #ffffff;
+        }
+        
+        .form-control, .form-select {
+          background-color: rgba(255, 255, 255, 0.1);
+          border: none;
+          
+          padding: 10px;
+          border-radius: 8px;
+        }
+        
+        .form-control::placeholder {
+          color: rgba(255, 255, 255, 0.7);
+        }
+        
+        /* Buttons */
+        .btn {
+          border-radius: 30px;
+          padding: 10px 25px;
+          transition: all 0.3s ease;
+        }
+        
+        .btn-primary {
+          background: linear-gradient(90deg, #007bff, #00b8d4);
+          border: none;
+        }
+        
+        .btn-primary:hover {
+          background: linear-gradient(90deg, #00b8d4, #007bff);
+          transform: scale(1.1);
+        }
+        
+        .btn-outline-primary {
+          color: #00b8d4;
+          border: 2px solid #00b8d4;
+        }
+        
+        .btn-outline-primary:hover {
+          background: #00b8d4;
+          color: #fff;
+        }
+        
+        /* Result Section */
+        .result-card {
+          margin-top: 20px;
+          display: none;
+        }
+        
+        .result-card .card-header {
+          background: linear-gradient(90deg, #28a745, #20c997);
+        }
+        
+        .result-card p {
+          font-size: 1.2rem;
+        }
+        
+        .fs-1 {
+          font-size: 2.5rem !important;
+        }
+        
+        .fs-2 {
+          font-size: 2rem !important;
+        }
+        
+        /* Alerts */
+        .alert {
+          background-color: rgba(255, 255, 255, 0.1);
+          border: none;
+          color: white;
+        }
+        
+        /* Responsive Design */
+        @media (max-width: 768px) {
+          .card {
+            padding: 15px;
+          }
+          .fs-1 {
+            font-size: 2rem !important;
+          }
+          .fs-2 {
+            font-size: 1.5rem !important;
+          }
+        }
+        .result-card{
+            color: #ffffff !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-header bg-primary text-white text-center py-3">
+                        <h2>Daily Calorie Calculator</h2>
+                        <p class="mb-0">Find your recommended daily calorie intake based on your profile</p>
+                    </div>
+                    <div class="card-body">
+                        <form id="calorieForm">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="gender" class="form-label">Gender</label>
+                                    <select class="form-select" id="gender" required>
+                                        <option value="" selected disabled>Select your gender</option>
+                                        <option value="male">Male</option>
+                                        <option value="female">Female</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="age" class="form-label">Age</label>
+                                    <input type="number" class="form-control" id="age" placeholder="Enter your age" min="15" max="100" required>
+                                </div>
+                            </div>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <label for="height" class="form-label">Height (cm)</label>
+                                    <input type="number" class="form-control" id="height" placeholder="Enter your height" min="100" max="250" required>
+                                </div>
+                                <div class="col-md-6">
+                                    <label for="weight" class="form-label">Weight (kg)</label>
+                                    <input type="number" class="form-control" id="weight" placeholder="Enter your weight" min="30" max="300" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="activity" class="form-label">Activity Level</label>
+                                <select class="form-select" id="activity" required>
+                                    <option value="" selected disabled>Select your activity level</option>
+                                    <option value="1.2">Sedentary (office job, mostly sitting)</option>
+                                    <option value="1.375">Lightly Active (standing jobs like teacher)</option>
+                                    <option value="1.55">Moderately Active (on your feet most of the day)</option>
+                                    <option value="1.725">Active (physical job like server or sales rep)</option>
+                                    <option value="1.9">Very Active (physical labor like construction)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="goal" class="form-label">Weight Goal</label>
+                                <select class="form-select" id="goal" required>
+                                    <option value="" selected disabled>Select your goal</option>
+                                    <option value="lose">Lose Weight (1-2 lb per week)</option>
+                                    <option value="maintain">Maintain Current Weight</option>
+                                    <option value="gain">Gain Weight (1-2 lb per week)</option>
+                                </select>
+                            </div>
+                            
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary btn-lg">Calculate Calories</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="card result-card" id="resultCard">
+                    <div class="card-header bg-success text-white text-center py-3">
+                        <h3>Your Calorie Results</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="text-center mb-4">
+                            <h4>Your Basal Metabolic Rate (BMR)</h4>
+                            <p class="fs-2 fw-bold" id="bmrResult">0</p>
+                            <p class="text-warning-emphasis">This is the number of calories your body needs at rest</p>
+                        </div>
+                        
+                        <div class="text-center mb-4">
+                            <h4>Your Total Daily Energy Expenditure</h4>
+                            <p class="fs-2 fw-bold" id="tdeeResult">0</p>
+                            <p class="text-warning-emphasis">This is your maintenance calorie level</p>
+                        </div>
+                        
+                        <div class="text-center">
+                            <h4>Recommended Daily Calorie Intake</h4>
+                            <p class="fs-1 fw-bold text-success" id="goalResult">0</p>
+                            <p class="text-warning-emphasis" id="goalDescription">Based on your profile and goals</p>
+                        </div>
+                        
+                        <div class="alert alert-info mt-4">
+                            <h5>What This Means:</h5>
+                            <p id="explanation">Your recommended daily calorie intake is based on your gender, age, height, weight, and activity level. Adjust your diet accordingly to reach your goals.</p>
+                        </div>
+                        
+                        <div class="d-grid gap-2 mt-4">
+                            <button type="button" class="btn btn-outline-primary" onclick="recalculate()">Recalculate</button>
+                        </div>
+                        <div class="d-flex gap-3 mt-5">
+                            <a href="{{ url_for('generate') }}" class="btn btn-primary w-100"
+                            >Generate Fitness Plan</a>
+                            <a href="{{ url_for('calorie_calculator') }}" class="btn btn-secondary w-100">Calorie Calculator</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('calorieForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            calculateCalories();
+        });
+        
+        function calculateCalories() {
+            // Get values from form
+            const gender = document.getElementById('gender').value;
+            const age = parseFloat(document.getElementById('age').value);
+            const height = parseFloat(document.getElementById('height').value);
+            const weight = parseFloat(document.getElementById('weight').value);
+            const activity = parseFloat(document.getElementById('activity').value);
+            const goal = document.getElementById('goal').value;
+            
+            // Calculate BMR based on gender (Mifflin-St Jeor Equation)
+            let bmr = 0;
+            if (gender === 'male') {
+                bmr = 66.47 + (13.75 * weight) + (5.003 * height) - (6.755 * age);
+            } else {
+                bmr = 655.1 + (9.563 * weight) + (1.850 * height) - (4.676 * age);
+            }
+            
+            // Calculate TDEE (Total Daily Energy Expenditure)
+            const tdee = bmr * activity;
+            
+            // Calculate calories based on goal
+            let goalCalories = 0;
+            let description = '';
+            
+            if (goal === 'lose') {
+                goalCalories = tdee - 500; // 500 calorie deficit for weight loss
+                description = 'For a weight loss of about 1 pound per week';
+            } else if (goal === 'gain') {
+                goalCalories = tdee + 500; // 500 calorie surplus for weight gain
+                description = 'For a weight gain of about 1 pound per week';
+            } else {
+                goalCalories = tdee;
+                description = 'To maintain your current weight';
+            }
+            
+            // Display results
+            document.getElementById('bmrResult').textContent = Math.round(bmr) + ' calories';
+            document.getElementById('tdeeResult').textContent = Math.round(tdee) + ' calories';
+            document.getElementById('goalResult').textContent = Math.round(goalCalories) + ' calories';
+            document.getElementById('goalDescription').textContent = description;
+            
+            // Generate explanation
+            let explanation = `Based on your profile as a ${age}-year-old ${gender}, weighing ${weight}kg with a height of ${height}cm and a ${getActivityText(activity)} lifestyle, `;
+            
+            if (goal === 'lose') {
+                explanation += `we recommend consuming approximately ${Math.round(goalCalories)} calories per day to lose weight at a healthy rate of about 1 pound per week.`;
+            } else if (goal === 'gain') {
+                explanation += `we recommend consuming approximately ${Math.round(goalCalories)} calories per day to gain weight at a healthy rate of about 1 pound per week.`;
+            } else {
+                explanation += `you should aim for approximately ${Math.round(goalCalories)} calories per day to maintain your current weight.`;
+            }
+            
+            document.getElementById('explanation').textContent = explanation;
+            
+            // Show results card
+            document.getElementById('resultCard').style.display = 'block';
+            document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+        }
+        
+        function getActivityText(activityLevel) {
+            switch(activityLevel.toString()) {
+                case '1.2': return 'sedentary';
+                case '1.375': return 'lightly active';
+                case '1.55': return 'moderately active';
+                case '1.725': return 'active';
+                case '1.9': return 'very active';
+                default: return 'moderate';
+            }
+        }
+        
+        function recalculate() {
+            document.getElementById('resultCard').style.display = 'none';
+            document.getElementById('calorieForm').scrollIntoView({ behavior: 'smooth' });
+        }
+    </script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+{% extends "base.html" %} {% block title %}Generate Workout Plan{% endblock %}
+{% block content %}
+<div class="container mt-5">
+  <h2 class="text-center">Generate Your Personalized Fitness Plan</h2>
+  <form
+    method="POST"
+    action="{{ url_for('generate') }}"
+    class="needs-validation"
+    novalidate
+  >
+    <!-- Basic Information -->
+    <h4 class="mb-3">Personal Information</h4>
+  
+    <div class="mb-3">
+      <label for="age" class="form-label">Age</label>
+      <input
+        type="number"
+        class="form-control"
+        id="age"
+        name="age"
+        min="16"
+        max="80"
+        required
+      />
+    </div>
+
+    <div class="mb-3">
+      <label for="sex" class="form-label">Biological Sex</label>
+      <select class="form-select" id="sex" name="sex" required>
+        <option value="male">Male</option>
+        <option value="female">Female</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="weight_in_kg" class="form-label">Weight (kg)*</label>
+      <input
+        type="number"
+        step="0.1"
+        class="form-control"
+        id="weight_in_kg"
+        name="weight_in_kg"
+        required
+      />
+      <div class="invalid-feedback">Please enter your weight</div>
+    </div>
+
+    <div class="mb-3">
+      <label for="height_in_cm" class="form-label">Height (cm)*</label>
+      <input
+        type="number"
+        class="form-control"
+        id="height_in_cm"
+        name="height_in_cm"
+        required
+      />
+      <div class="invalid-feedback">Please enter your height</div>
+    </div>
+
+    <!-- Fitness Goals and Level -->
+    <h4 class="mb-3 mt-4">Fitness Profile</h4>
+    <div class="mb-3">
+      <label for="fitness_goal" class="form-label">Primary Fitness Goal</label>
+      <select
+        class="form-select"
+        id="fitness_goal"
+        name="fitness_goal"
+        required
+      >
+        <option value="weight_loss">Weight Loss</option>
+        <option value="muscle_gain">Muscle Gain</option>
+        <option value="endurance">Endurance</option>
+        <option value="strength">Strength</option>
+        <option value="flexibility">Flexibility</option>
+        <option value="general_fitness">General Fitness</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="fitness_level" class="form-label"
+        >Current Fitness Level</label
+      >
+      <select
+        class="form-select"
+        id="fitness_level"
+        name="fitness_level"
+        required
+      >
+        <option value="1">Beginner (No regular exercise)</option>
+        <option value="2">Novice (Occasional exercise)</option>
+        <option value="3">Intermediate (Regular exercise)</option>
+        <option value="4">Advanced (Consistent training)</option>
+        <option value="5">Expert (Athletic background)</option>
+      </select>
+    </div>
+
+    <!-- Health Metrics -->
+    <h4 class="mb-3 mt-4">Health Information</h4>
+    <div class="mb-3">
+      <label for="blood_pressure" class="form-label">Blood Pressure</label>
+      <select
+        class="form-select"
+        id="blood_pressure"
+        name="blood_pressure"
+        required
+      >
+        <option value="normal">Normal (120/80 or lower)</option>
+        <option value="elevated">Elevated (120-129/80)</option>
+        <option value="high">High (130+/80+)</option>
+        <option value="unknown">Unknown</option>
+      </select>
+    </div>
+
+    <!-- Exercise Preferences -->
+    <h4 class="mb-3 mt-4">Exercise Preferences</h4>
+    <div class="mb-3">
+      <label for="equipment" class="form-label">Available Equipment</label>
+      <select
+        class="form-select"
+        id="equipment"
+        name="equipment"
+        multiple
+        required
+      >
+        <option value="none">No Equipment (Bodyweight Only)</option>
+        <option value="dumbbells">Dumbbells</option>
+        <option value="bands">Resistance Bands</option>
+        <option value="barbell">Barbell Set</option>
+        <option value="machines">Gym Machines</option>
+        <option value="cardio">Cardio Equipment</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="days_per_week" class="form-label"
+        >Preferred Training Days per Week</label
+      >
+      <input
+        type="number"
+        class="form-control"
+        id="days_per_week"
+        name="days_per_week"
+        min="2"
+        max="6"
+        required
+      />
+    </div>
+
+    <!-- Add Exercise Intensity -->
+    <div class="mb-3">
+      <label for="intensity" class="form-label"
+        >Preferred Exercise Intensity</label
+      >
+      <select class="form-select" id="intensity" name="intensity" required>
+        <option value="-1">
+          Low (Light exercise, easily maintain conversation)
+        </option>
+        <option value="0">Moderate (Some effort, can still talk)</option>
+        <option value="1">High (Heavy breathing, difficult to talk)</option>
+      </select>
+    </div>
+
+    <!-- Add Exercise Type Preference -->
+    <div class="mb-3">
+      <label for="exercise_type" class="form-label"
+        >Preferred Exercise Types</label
+      >
+      <select
+        class="form-select"
+        id="exercise_type"
+        name="exercise_type"
+        required
+      >
+        <option value="0">Cardiovascular</option>
+        <option value="1">Strength Training</option>
+        <option value="2">High-Intensity Interval</option>
+        <option value="3">Flexibility/Stretching</option>
+      </select>
+    </div>
+
+    <!-- Lifestyle -->
+    <h4 class="mb-3 mt-4">Lifestyle & Recovery</h4>
+    <div class="mb-3">
+      <label for="sleep_hours" class="form-label">Average Sleep Hours</label>
+      <input
+        type="number"
+        class="form-control"
+        id="sleep_hours"
+        name="sleep_hours"
+        min="4"
+        max="12"
+        step="0.5"
+        required
+      />
+    </div>
+
+    <div class="mb-3">
+      <label for="stress_level" class="form-label">Stress Level</label>
+      <select
+        class="form-select"
+        id="stress_level"
+        name="stress_level"
+        required
+      >
+        <option value="1">Low (Rarely stressed)</option>
+        <option value="2">Moderate (Sometimes stressed)</option>
+        <option value="3">High (Often stressed)</option>
+      </select>
+    </div>
+
+    <!-- Nutrition -->
+    <h4 class="mb-3 mt-4">Nutrition Preferences</h4>
+    <div class="mb-3">
+      <label for="diet_type" class="form-label">Diet Preference</label>
+      <select class="form-select" id="diet_type" name="diet_type" required>
+        <option value="balanced">Balanced</option>
+        <option value="keto">Ketogenic</option>
+        <option value="vegetarian">Vegetarian</option>
+        <option value="vegan">Vegan</option>
+        <option value="mediterranean">Mediterranean</option>
+        <option value="paleo">Paleo</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="meals_per_day" class="form-label"
+        >Preferred Meals per Day</label
+      >
+      <select
+        class="form-select"
+        id="meals_per_day"
+        name="meals_per_day"
+        required
+      >
+        <option value="3">3 meals</option>
+        <option value="4">4 meals</option>
+        <option value="5">5 meals</option>
+        <option value="6">6 meals</option>
+      </select>
+    </div>
+
+    <div class="mb-3">
+      <label for="allergies" class="form-label"
+        >Food Allergies/Restrictions</label
+      >
+      <input
+        type="text"
+        class="form-control"
+        id="allergies"
+        name="allergies"
+        placeholder="E.g., dairy, nuts, gluten"
+      />
+    </div>
+
+    <!-- Add Nutrition Targets -->
+    <div class="mb-3">
+      <label for="calorie_target" class="form-label"
+        >Daily Calorie Target (if known)</label
+      >
+      <input
+        type="number"
+        class="form-control"
+        id="calorie_target"
+        name="calorie_target"
+        min="1200"
+        max="4000"
+        step="50"
+      />
+    </div>
+
+    <!-- Update macro preferences to exactly match model clusters -->
+    <div class="mb-3">
+      <label for="macro_preference" class="form-label"
+        >Macro Nutrient Preference</label
+      >
+      <select class="form-select" id="macro_preference" name="macro_preference">
+        <option value="balanced">Balanced (30/40/30)</option>
+        <option value="high_protein">High Protein (40/40/20)</option>
+        <option value="low_carb">Low Carb (50/10/40)</option>
+        <option value="high_carb">High Carb (30/50/20)</option>
+      </select>
+      <small class="form-text text-muted">(Protein/Carbs/Fat)</small>
+    </div>
+
+    <!-- Add missing model features -->
+    <div class="mb-3">
+      <label for="activity_level" class="form-label"
+        >Daily Activity Level</label
+      >
+      <select
+        class="form-select"
+        id="activity_level"
+        name="activity_level"
+        required
+      >
+        <option value="-1">Sedentary (Office job/Little movement)</option>
+        <option value="0">Moderate (Some walking/standing)</option>
+        <option value="1">Active (Physical job/Regular movement)</option>
+      </select>
+    </div>
+
+    <!-- Add dietary restrictions that affect model predictions -->
+    <div class="mb-3">
+      <label for="dietary_restrictions" class="form-label"
+        >Dietary Restrictions</label
+      >
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          name="restrictions[]"
+          value="gluten_free"
+          id="gluten_free"
+        />
+        <label class="form-check-label" for="gluten_free">Gluten Free</label>
+      </div>
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          name="restrictions[]"
+          value="lactose_free"
+          id="lactose_free"
+        />
+        <label class="form-check-label" for="lactose_free">Lactose Free</label>
+      </div>
+      <div class="form-check">
+        <input
+          class="form-check-input"
+          type="checkbox"
+          name="restrictions[]"
+          value="nut_free"
+          id="nut_free"
+        />
+        <label class="form-check-label" for="nut_free">Nut Free</label>
+      </div>
+    </div>
+
+    <!-- Add hidden field for model rating -->
+    <input type="hidden" name="rating" value="0" />
+     
+    <!-- Submit button -->
+     <div class="d-flex justify-content-end gap-3 mt-4">
+      <button type="submit" class="btn btn-primary w-100 ">
+        <i class="ph ph-sparkle fs-4 me-3"></i>Generate Personalized Plan
+      </button>
+      <button type="button" class="btn btn-outline-secondary" onclick="history.back()" title="Back">
+        <i class="ph ph-arrow-u-down-left fs-4"></i>
+      </button>
+      <button type="button" class="btn btn-outline-warning" onclick="clearForm()" title="Clear All">
+        <i class="ph ph-broom fs-4"></i>
+      </button>
+     </div>
+    
+  </form>
+</div>
+
+<script>
+  function clearForm() {
+    document.querySelector("form").reset(); 
+    document
+      .querySelectorAll("select")
+      .forEach((select) => (select.value = "")); 
+    document
+      .querySelectorAll("input[type='checkbox']")
+      .forEach((checkbox) => (checkbox.checked = false)); 
+  }
+</script>
+{% endblock %}

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fitness AI</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- GSAP CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.11.4/gsap.min.js"></script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #1a1a1a 0%, #2c2c2c 100%);
+            color: #fff;
+            font-family: 'Arial', sans-serif;
+            overflow-x: hidden;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Navigation Bar */
+        .navbar {
+            background: rgba(0, 0, 0, 0.8);
+            padding: 1rem 2rem;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.2);
+        }
+        .navbar-brand, .nav-link {
+            color: #00ccff !important;
+            text-transform: uppercase;
+            font-weight: bold;
+        }
+        .nav-link:hover {
+            color: #fff !important;
+            text-shadow: 0 0 10px #00ccff;
+        }
+
+        /* Hero Section */
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            background: radial-gradient(circle, rgba(0, 204, 255, 0.1) 0%, rgba(0, 0, 0, 0.9) 70%);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero h1 {
+            font-size: 3.5rem;
+            color: #00ccff;
+            text-shadow: 0 0 20px #00ccff;
+            margin-bottom: 1rem;
+        }
+        .hero p {
+            font-size: 1.5rem;
+            color: #ccc;
+            max-width: 700px;
+        }
+        .btn-get-started {
+            background: #00ccff;
+            color: #fff;
+            padding: 12px 30px;
+            border: 2px solid #fff;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            box-shadow: 0 0 15px #00ccff;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-get-started:hover {
+            background: #fff;
+            color: #00ccff;
+            box-shadow: 0 0 25px #00ccff;
+        }
+
+        /* Gradient Animation */
+        .gradient-bg {
+            position: absolute;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, #00ccff, #1a1a1a, #00ccff, #1a1a1a);
+            opacity: 0.2;
+            animation: gradientMove 15s infinite linear;
+            z-index: -1;
+        }
+        @keyframes gradientMove {
+            0% { transform: translate(-50%, -50%) rotate(0deg); }
+            100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+
+        /* About Section */
+        .about {
+            padding: 100px 0;
+            background: #1a1a1a;
+            text-align: center;
+        }
+        .about h2 {
+            font-size: 2.5rem;
+            color: #00ccff;
+            margin-bottom: 30px;
+            text-shadow: 0 0 15px #00ccff;
+        }
+        .about p {
+            font-size: 1.2rem;
+            color: #ccc;
+            max-width: 800px;
+            margin: 0 auto 20px;
+        }
+
+        /* Pricing Section */
+        .pricing {
+            padding: 100px 0;
+            background: #2c2c2c;
+            text-align: center;
+        }
+        .pricing h2 {
+            font-size: 2.5rem;
+            color: #00ccff;
+            margin-bottom: 50px;
+            text-shadow: 0 0 15px #00ccff;
+        }
+        .pricing-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0, 204, 255, 0.2);
+            transition: transform 0.3s ease;
+        }
+        .pricing-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 0 30px rgba(0, 204, 255, 0.4);
+        }
+        .pricing-card h3 {
+            color: #00ccff;
+            font-size: 1.8rem;
+        }
+        .pricing-card p, .pricing-card ul {
+            color: #ccc;
+            font-size: 1rem;
+        }
+        .pricing-card ul {
+            list-style: none;
+            padding: 0;
+            margin: 20px 0;
+        }
+        .pricing-card ul li {
+            margin-bottom: 10px;
+        }
+
+        /* Team Section */
+        .team {
+            padding: 100px 0;
+            background: #1a1a1a;
+            text-align: center;
+        }
+        .team h2 {
+            font-size: 2.5rem;
+            color: #00ccff;
+            margin-bottom: 50px;
+            text-shadow: 0 0 15px #00ccff;
+        }
+        .team-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 204, 255, 0.2);
+            margin-bottom: 20px;
+        }
+        .team-card h4 {
+            color: #00ccff;
+            font-size: 1.5rem;
+        }
+        .team-card p {
+            color: #ccc;
+            font-size: 1rem;
+        }
+
+        /* Contact Section */
+        .contact {
+            padding: 100px 0;
+            background: #2c2c2c;
+            text-align: center;
+        }
+        .contact h2 {
+            font-size: 2.5rem;
+            color: #00ccff;
+            margin-bottom: 30px;
+            text-shadow: 0 0 15px #00ccff;
+        }
+        .contact p {
+            font-size: 1.2rem;
+            color: #ccc;
+            margin-bottom: 20px;
+        }
+        .contact-form {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        .contact-form input, .contact-form textarea {
+            width: 100%;
+            padding: 15px;
+            margin-bottom: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid #00ccff;
+            border-radius: 5px;
+            color: #fff;
+            font-size: 1rem;
+        }
+        .contact-form input::placeholder, .contact-form textarea::placeholder {
+            color: #ccc;
+        }
+        .contact-form button {
+            background: #00ccff;
+            color: #fff;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 50px;
+            font-size: 1.2rem;
+            box-shadow: 0 0 15px #00ccff;
+            transition: all 0.3s ease;
+        }
+        .contact-form button:hover {
+            background: #fff;
+            color: #00ccff;
+            box-shadow: 0 0 25px #00ccff;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 2.5rem; }
+            .hero p { font-size: 1.2rem; }
+            .pricing-card, .team-card { margin: 0 10px 20px; }
+            .about h2, .pricing h2, .team h2, .contact h2 { font-size: 2rem; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg">
+        <div class="container">
+            <a class="navbar-brand" href="#">Fitness AI</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"> <a class="nav-link" href="{{ url_for('login') }}">Login</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Register</a></li>
+                    <li class="nav-item"><a class="nav-link" href="{{ url_for('admin_login') }}">Admin Login</a></li>
+                   
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="gradient-bg"></div>
+        <div>
+            <h1>Transform Your Lifestyle with AI</h1>
+            <p>Experience the future of fitness and nutrition with our AI-powered system that crafts personalized meal plans and workout routines tailored to your goals, preferences, and lifestyle.</p>
+            <button href="{{ url_for('register') }}" class="btn btn-outline-primary">Get Started Now</button>
+        </div>
+    </section>
+
+ 
+
+   
+
+    <!-- Bootstrap JS and Custom JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // GSAP Animations
+        gsap.from(".hero h1", { opacity: 0, y: -50, duration: 1, delay: 0.5 });
+        gsap.from(".hero p", { opacity: 0, y: 50, duration: 1, delay: 1 });
+        gsap.from(".btn-get-started", { opacity: 0, scale: 0.8, duration: 0.8, delay: 1.5 });
+
+        gsap.from(".about p", {
+            scrollTrigger: ".about",
+            opacity: 0,
+            y: 50,
+            stagger: 0.3,
+            duration: 1
+        });
+
+        gsap.from(".pricing-card", {
+            scrollTrigger: ".pricing",
+            opacity: 0,
+            y: 100,
+            stagger: 0.3,
+            duration: 1
+        });
+
+        gsap.from(".team-card", {
+            scrollTrigger: ".team",
+            opacity: 0,
+            x: -100,
+            stagger: 0.3,
+            duration: 1
+        });
+
+        gsap.from(".contact-form input, .contact-form textarea, .contact-form button", {
+            scrollTrigger: ".contact",
+            opacity: 0,
+            y: 50,
+            stagger: 0.2,
+            duration: 1
+        });
+    </script>
+</body>
+</html>
